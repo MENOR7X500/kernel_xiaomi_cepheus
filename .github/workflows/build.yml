@@ -23,9 +23,9 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
-          # O comando abaixo limpa erros de pastas vazias antes de compilar
+          # Este comando prepara os arquivos que deram erro antes
           make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
