@@ -10,7 +10,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: '13.0'
-          fetch-depth: 0
 
       - name: Instalar Ferramentas
         run: |
@@ -20,41 +19,36 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Integrar KernelSU Next (Forçado)
+      - name: Integrar KernelSU Next (Legacy)
         run: |
-          # Garante que estamos na raiz do kernel e baixa o KSU
-          # O comando 'pwd' ajuda a debugar se necessário
-          KSU_DIR="drivers/kernelsu"
-          rm -rf "$KSU_DIR"
-          git clone https://github.com/rifsxd/KernelSU-Next "$KSU_DIR"
+          # 1. Baixa o KSU diretamente na pasta drivers/kernelsu
+          mkdir -p drivers/kernelsu
+          git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # Verifica se o Makefile de drivers já tem o KSU, se não, adiciona no final
+          # 2. Garante que o Makefile dos drivers saiba que a pasta existe
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
-          
-          echo "Conteúdo da pasta drivers/kernelsu:"
-          ls "$KSU_DIR"
 
       - name: Compilar
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # Limpeza total
+          # Limpeza total para evitar lixo de tentativas anteriores
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           
-          # Configura o Mi 9 (cepheus)
+          # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # FORÇAR CONFIGS E DESATIVAR YAML (Erro da Imagem 1)
-          # Isso desativa o validador de YAML que está quebrando o Linker
-          scripts/config --file out/.config --enable CONFIG_KSU
-          scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
+          # SOLUÇÃO PARA O ERRO DA IMAGEM 1: Desativa o YAML que quebra o build
+          # Isso resolve o "undefined symbol: yaml_scalar_event_initialize"
+          sed -i 's/CONFIG_DTC_FLAGS_YAML=y/CONFIG_DTC_FLAGS_YAML=n/g' out/.config
+          
+          # Ativa o KernelSU no config
           echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação principal
-          # Usando flags para ignorar erros de YAML no DTC
+          # Compilação - Usando CROSS_COMPILE e desativando avisos fatais
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -65,13 +59,13 @@ jobs:
             STRIP=llvm-strip \
             DTC_FLAGS="-@ -Wno-graph_child_address"
 
-      - name: Organizar Arquivos
+      - name: Organizar e Upload
         run: |
-          # Pega a imagem gerada
+          # Procura a imagem gerada (pode ser Image.gz ou Image.gz-dtb)
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-Final
+          name: Mi9-Kernel-KSU-Final
           path: Image.gz*
