@@ -21,11 +21,16 @@ jobs:
 
       - name: Integrar KernelSU Next (Legacy)
         run: |
-          # 1. Limpa qualquer resquício e baixa o KSU corretamente
+          # 1. Remove qualquer pasta anterior para evitar o erro "File exists"
           rm -rf drivers/kernelsu
-          git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # 2. Garante a inclusão no Makefile principal de drivers
+          # 2. Clona em uma pasta temporária e move apenas o conteúdo necessário
+          git clone https://github.com/rifsxd/KernelSU-Next temp_ksu
+          mv temp_ksu/kernel drivers/kernelsu
+          # Caso o repo não tenha a pasta /kernel, use este comando no lugar do de cima:
+          # mv temp_ksu drivers/kernelsu
+          
+          # 3. Garante que o Makefile aponte para a pasta correta
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
@@ -34,21 +39,15 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # Limpeza profunda
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
-          
-          # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # MATA O ERRO DE YAML (Imagem 1)
-          # Removemos o suporte a YAML do compilador de árvore de dispositivos
+          # Resolve o erro de undefined symbol: yaml (Imagem 1)
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
-          
-          # Ativa o KernelSU
           echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação - Forçamos o linker a ignorar o que não encontrar de YAML
+          # Compilação com flags de compatibilidade
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
