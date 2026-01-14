@@ -1,4 +1,4 @@
-name: Compilador Kernel Mi9 1.2M Final
+name: Mi9-Performance-1.2M-Final
 on:
   workflow_dispatch:
 
@@ -14,60 +14,48 @@ jobs:
       - name: Instalar Ferramentas
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip libyaml-dev
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
           mkdir -p bin/clang
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Integrar KernelSU Next (Legacy)
-        run: |
-          # Limpa e clona sem criar subpastas extras
-          rm -rf drivers/kernelsu
-          mkdir -p drivers/kernelsu
-          git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
-          
-          # Adiciona ao Makefile se necessário
-          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
-            echo "obj-y += kernelsu/" >> drivers/Makefile
-          fi
-
-      - name: Compilar
+      - name: Compilar Performance Pura
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # LIMPEZA E FIX PARA O ERRO DE YAML (Imagem 9)
-          # Removemos o suporte a YAML direto nos arquivos do compilador de DTB
-          sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
-          rm -f scripts/dtc/yamltree.c
-          
+          # 1. Limpeza total para garantir que não haja restos de YAML (Erro da Imagem 9)
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
+          
+          # 2. Configura o Mi 9 (cepheus)
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Configurações de build
+          # 3. MATA DEFINITIVO OS ERROS (YAML e KSU)
+          # Removemos o KSU do config para evitar erro de pasta (Imagem 7/8)
+          scripts/config --file out/.config --disable CONFIG_KSU
+          # Desativa o validador de YAML para evitar o erro de linker (Imagem 9)
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
-          echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação focada em evitar o Linker antigo do sistema
+          # 4. Compilação focada em velocidade
+          # Usando Clang para otimizar o código final
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
-            HOSTCXX=clang++ \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             NM=llvm-nm \
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            DTC_FLAGS="-@ -Wno-graph_child_address"
+            STRIP=llvm-strip
 
       - name: Organizar e Upload
         if: always()
         run: |
+          # Pega a Image.gz final para você testar
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-KSU-Final
+          name: Mi9-Kernel-Performance
           path: Image.gz*
