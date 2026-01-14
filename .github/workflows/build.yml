@@ -1,26 +1,30 @@
 name: Compilador Kernel Mi9 1.2M Edicao
 on:
   workflow_dispatch:
+
 jobs:
-  build:
+  construir:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: 13.0
-      - name: Setup Tools
+
+      - name: Ferramentas de configuracao
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu zip
-          git clone https://gitlab.com/LeCmnGend/proton-clang -b clang-19 --depth=1 bin/clang
-      - name: Build Kernel
+          sudo apt install -y build-essential bc gcc aarch64-linux-gnu zip
+          git clone https://gitlab.com/LoS-Vndng/proton-clang -b clang-19 --depth=1 bin/clang
+
+      - name: Construir o Kernel
         run: |
-          export PATH=$GITHUB_WORKSPACE/bin/clang/bin:$PATH
+          export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu-
-      - name: Upload
+
+      - name: Carregar
         uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-Ultimate-1.2M
+          name: Mi9-Kernel-1.2M-Final
           path: out/arch/arm64/boot/Image.gz-dtb
