@@ -1,4 +1,4 @@
-name: Compilar Kernel 1.2M
+name: Compilador Kernel Mi9 1.2M Edicao
 on:
   workflow_dispatch:
 jobs:
@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: 13.0
       - name: Setup Tools
@@ -20,7 +20,7 @@ jobs:
           make O=out ARCH=arm64 cepheus_defconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu-
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-1.2M
+          name: Mi9-Kernel-Ultimate-1.2M
           path: out/arch/arm64/boot/Image.gz-dtb
