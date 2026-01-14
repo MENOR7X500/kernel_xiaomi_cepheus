@@ -1,38 +1,41 @@
-# This is a basic workflow to help you get started with Actions
-name: build
-
-# Controls when the action will run.
+name: Build Kernel Mi9 1.2M Edition
 on:
-  # Triggers the workflow on push events but only for the eleven branch
-  push:
-    tags:
-      - "*"
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      - name: Build
-        run: |
-          bash ./build.sh
-
-      - name: Release
-        uses: "marvinpinto/action-automatic-releases@latest"
+      - name: Checkout Source
+        uses: actions/checkout@v3
         with:
-          automatic_release_tag: "latest"
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: false
-          files: |
-            out/*.zip
+          ref: 13.0
+
+      - name: Setup Toolchain (Clang 19)
+        run: |
+          sudo apt update && sudo apt install -y build-essential bc gcc-aarch64-linux-gnu zip
+          git clone https://gitlab.com/LeCmnGend/proton-clang -b clang-19 --depth=1 bin/clang
+
+      - name: Inject KSU-Next & SusFS
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/rifsxd/ksu-next/main/install.sh" | bash
+          echo "CONFIG_KSU_NEXT=y" >> arch/arm64/configs/cepheus_defconfig
+          echo "CONFIG_SUSFS=y" >> arch/arm64/configs/cepheus_defconfig
+
+      - name: Extreme Performance Tuning
+        run: |
+          # Otimização de latência de toque para 60ms
+          sed -i 's/CONFIG_HZ=100/CONFIG_HZ=300/g' arch/arm64/configs/cepheus_defconfig
+          sed -i 's/long_press_timeout 400/long_press_timeout 60/g' ./AnyKernel3/anykernel.sh
+
+      - name: Compile
+        run: |
+          export PATH=$GITHUB_WORKSPACE/bin/clang/bin:$PATH
+          make O=out ARCH=arm64 cepheus_defconfig
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu-
+
+      - name: Upload Kernel Zip
+        uses: actions/upload-artifact@v3
+        with:
+          name: Mi9-Kernel-1.2M-Edition
+          path: out/arch/arm64/boot/Image.gz-dtb
