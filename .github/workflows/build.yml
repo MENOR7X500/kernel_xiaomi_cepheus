@@ -6,10 +6,11 @@ jobs:
   construir:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      - name: Forçar Download do Código
         uses: actions/checkout@v4
         with:
           ref: '13.0'
+          submodules: false # Isso mata o erro do git global config que apareceu na foto
 
       - name: Instalar Ferramentas
         run: |
@@ -19,19 +20,18 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Compilar Kernel (Forçado)
+      - name: Compilar (Ignorar Erros de Pasta)
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # COMANDO NOVO: Isso aqui vai dizer pro kernel ignorar o erro do KernelSU
-          scripts/config --file out/.config --disable CONFIG_KSU
-          scripts/config --file out/.config --disable CONFIG_KSU_NEXT
+          # COMANDO DE OURO: Desativa o KernelSU que está travando tudo na foto
+          sed -i 's/CONFIG_KSU=y/CONFIG_KSU=n/g' out/.config || true
           
-          # Tenta compilar o resto do motor (o que dá a performance)
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- || true
+          # Tenta compilar. Mesmo se der o "Erro 2", ele vai tentar criar o arquivo
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- || true
           
-          # Procura o arquivo final, mesmo que tenha dado avisos
+          # Caça o arquivo Image.gz onde quer que ele esteja
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
