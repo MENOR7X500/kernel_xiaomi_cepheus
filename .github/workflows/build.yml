@@ -15,7 +15,8 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
-          git clone https://gitlab.com/LoS-Vndng/proton-clang -b clang-19 --depth=1 bin/clang
+          # Usando um link que não pede senha:
+          git clone https://github.com/kdrag0n/proton-clang.git --depth=1 bin/clang
 
       - name: Compilar Kernel
         run: |
