@@ -6,11 +6,10 @@ jobs:
   construir:
     runs-on: ubuntu-22.04
     steps:
-      - name: Forçar Download do Código
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: '13.0'
-          submodules: false # Isso mata o erro do git global config que apareceu na foto
 
       - name: Instalar Ferramentas
         run: |
@@ -20,18 +19,25 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Compilar (Ignorar Erros de Pasta)
+      - name: Compilar (Sem Erros de Pasta)
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
+          
+          # LIMPEZA TOTAL antes de começar
+          make O=out ARCH=arm64 clean
+          make O=out ARCH=arm64 mrproper
+          
+          # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # COMANDO DE OURO: Desativa o KernelSU que está travando tudo na foto
-          sed -i 's/CONFIG_KSU=y/CONFIG_KSU=n/g' out/.config || true
+          # COMANDO NOVO: Remove as linhas que causam o erro de pasta inexistente
+          sed -i '/CONFIG_KSU/d' out/.config
+          echo "CONFIG_KSU=n" >> out/.config
           
-          # Tenta compilar. Mesmo se der o "Erro 2", ele vai tentar criar o arquivo
+          # Tenta compilar o motor de performance
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- || true
           
-          # Caça o arquivo Image.gz onde quer que ele esteja
+          # Tenta encontrar o arquivo mesmo se der aviso
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
