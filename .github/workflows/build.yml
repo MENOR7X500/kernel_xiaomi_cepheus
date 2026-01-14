@@ -21,16 +21,12 @@ jobs:
 
       - name: Integrar KernelSU Next (Legacy)
         run: |
-          # 1. Remove qualquer pasta anterior para evitar o erro "File exists"
+          # Limpa e clona sem criar subpastas extras
           rm -rf drivers/kernelsu
+          mkdir -p drivers/kernelsu
+          git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # 2. Clona em uma pasta temporária e move apenas o conteúdo necessário
-          git clone https://github.com/rifsxd/KernelSU-Next temp_ksu
-          mv temp_ksu/kernel drivers/kernelsu
-          # Caso o repo não tenha a pasta /kernel, use este comando no lugar do de cima:
-          # mv temp_ksu drivers/kernelsu
-          
-          # 3. Garante que o Makefile aponte para a pasta correta
+          # Adiciona ao Makefile se necessário
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
@@ -39,24 +35,30 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
+          # LIMPEZA E FIX PARA O ERRO DE YAML (Imagem 9)
+          # Removemos o suporte a YAML direto nos arquivos do compilador de DTB
+          sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
+          rm -f scripts/dtc/yamltree.c
+          
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Resolve o erro de undefined symbol: yaml (Imagem 1)
+          # Configurações de build
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação com flags de compatibilidade
+          # Compilação focada em evitar o Linker antigo do sistema
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
+            HOSTCC=clang \
+            HOSTCXX=clang++ \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             NM=llvm-nm \
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
-            HOSTCFLAGS="-DCONFIG_DTC_FLAGS_YAML=0" \
             DTC_FLAGS="-@ -Wno-graph_child_address"
 
       - name: Organizar e Upload
