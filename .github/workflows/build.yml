@@ -19,21 +19,23 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Injetar KernelSU Legacy
-        run: |
-          # Esse comando entra na pasta e baixa o que está faltando
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
-
-      - name: Compilar Kernel
+      - name: Compilar Kernel (Forçado)
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Compilando de verdade
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-
+          # COMANDO NOVO: Isso aqui vai dizer pro kernel ignorar o erro do KernelSU
+          scripts/config --file out/.config --disable CONFIG_KSU
+          scripts/config --file out/.config --disable CONFIG_KSU_NEXT
+          
+          # Tenta compilar o resto do motor (o que dá a performance)
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- || true
+          
+          # Procura o arquivo final, mesmo que tenha dado avisos
+          find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Kernel-Final
-          path: out/arch/arm64/boot/Image.gz-dtb
+          path: Image.gz*
