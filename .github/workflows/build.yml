@@ -1,41 +1,26 @@
-name: Build Kernel Mi9 1.2M Edition
+name: Compilar Kernel Mi9 1.2M Edition
 on:
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout
         uses: actions/checkout@v3
         with:
           ref: 13.0
-
-      - name: Setup Toolchain (Clang 19)
+      - name: Setup
         run: |
-          sudo apt update && sudo apt install -y build-essential bc gcc-aarch64-linux-gnu zip
+          sudo apt update
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu zip
           git clone https://gitlab.com/LeCmnGend/proton-clang -b clang-19 --depth=1 bin/clang
-
-      - name: Inject KSU-Next & SusFS
-        run: |
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/ksu-next/main/install.sh" | bash
-          echo "CONFIG_KSU_NEXT=y" >> arch/arm64/configs/cepheus_defconfig
-          echo "CONFIG_SUSFS=y" >> arch/arm64/configs/cepheus_defconfig
-
-      - name: Extreme Performance Tuning
-        run: |
-          # Otimização de latência de toque para 60ms
-          sed -i 's/CONFIG_HZ=100/CONFIG_HZ=300/g' arch/arm64/configs/cepheus_defconfig
-          sed -i 's/long_press_timeout 400/long_press_timeout 60/g' ./AnyKernel3/anykernel.sh
-
-      - name: Compile
+      - name: Build
         run: |
           export PATH=$GITHUB_WORKSPACE/bin/clang/bin:$PATH
           make O=out ARCH=arm64 cepheus_defconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu-
-
-      - name: Upload Kernel Zip
+      - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: Mi9-Kernel-1.2M-Edition
+          name: Mi9-Kernel-Ultimate
           path: out/arch/arm64/boot/Image.gz-dtb
