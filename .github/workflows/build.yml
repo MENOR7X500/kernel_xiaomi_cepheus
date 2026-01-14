@@ -11,19 +11,19 @@ jobs:
         with:
           ref: '13.0'
 
-      - name: Ferramentas
+      - name: Instalar Ferramentas
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc aarch64-linux-gnu zip
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
           git clone https://gitlab.com/LoS-Vndng/proton-clang -b clang-19 --depth=1 bin/clang
 
-      - name: Build
+      - name: Compilar Kernel
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu-
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
-      - name: Upload
+      - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Kernel-Final
