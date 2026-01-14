@@ -21,16 +21,16 @@ jobs:
 
       - name: Faxina Inteligente (Anti-YAML e Anti-KSU)
         run: |
-          # 1. Remove a chamada do KernelSU que trava o build
+          # 1. Remove a chamada do KernelSU que trava o build por falta de pasta
           sed -i '/kernelsu/d' drivers/Makefile
           
-          # 2. Esvazia o arquivo em vez de deletar (Resolve o Erro 293)
+          # 2. Resolve o Erro 293: Mantém o arquivo mas limpa o conteúdo
           echo "/* Esvaziado para evitar erro de YAML */" > scripts/dtc/yamltree.c
           
-          # 3. Remove a instrução de compilação do yamltree (Resolve as linhas 341-367)
+          # 3. Resolve as linhas 341-367: Remove a instrução de compilação do objeto
           sed -i 's/dtc-objs += yamltree.o//g' scripts/dtc/Makefile
           
-          # 4. Força o DTC a compilar sem depender de bibliotecas externas
+          # 4. Desativa dependências externas no compilador de árvore de dispositivos
           echo "HOST_EXTRACFLAGS += -DNO_YAML" >> scripts/dtc/Makefile
 
       - name: Compilação de Alta Performance
@@ -41,11 +41,11 @@ jobs:
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Desativa as configs problemáticas
+          # Desativa as configs problemáticas identificadas nos logs
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           scripts/config --file out/.config --disable CONFIG_KSU
           
-          # Build otimizado para o Mi 9
+          # Build otimizado para o Mi 9 (Snapdragon 855)
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
