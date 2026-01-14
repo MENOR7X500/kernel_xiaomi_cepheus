@@ -19,18 +19,17 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Faxina nos Erros (Anti-Crash)
+      - name: Faxina Radical (Anti-YAML e Anti-KSU)
         run: |
-          # 1. Remove a chamada do KernelSU que trava o build
+          # 1. Remove a chamada do KernelSU que trava o build por falta de pasta
           sed -i '/kernelsu/d' drivers/Makefile
           
-          # 2. Mata o erro de YAML (DTC) definitivamente
-          # Força o Makefile do DTC a não compilar o yamltree
-          sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
-          # Define a flag de pré-processador para desativar o YAML no código C
-          echo "HOSTCFLAGS += -DNO_YAML" >> scripts/dtc/Makefile
+          # 2. DELETA o suporte a YAML no nível do código (Resolve o erro das linhas 341-367)
+          rm -f scripts/dtc/yamltree.c
+          sed -i 's/dtc-objs += yamltree.o//g' scripts/dtc/Makefile
+          echo "HOST_EXTRACFLAGS += -DNO_YAML" >> scripts/dtc/Makefile
 
-      - name: Compilar com Clang r522817
+      - name: Compilação de Alta Performance
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
@@ -38,11 +37,11 @@ jobs:
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Desativa as configs que deram erro nos logs
+          # Desativa as configs que deram erro nos logs anteriores
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           scripts/config --file out/.config --disable CONFIG_KSU
           
-          # Build Otimizado
+          # Build focado em performance com Clang r522817
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
@@ -53,12 +52,12 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip
 
-      - name: Artifact
+      - name: Organizar e Upload
         if: always()
         run: |
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
-      - name: Upload
+      - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Turbo-Kernel
