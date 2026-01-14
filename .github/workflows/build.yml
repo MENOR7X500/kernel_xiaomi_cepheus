@@ -19,29 +19,50 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Compilar (Sem Erros de Pasta)
+      - name: Integrar KernelSU Next (Legacy)
+        run: |
+          # Remove a pasta se ela já existir por algum motivo e clona a versão Next
+          rm -rf drivers/kernelsu
+          git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
+          
+          # Garante que o KernelSU está no Makefile dos drivers
+          if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
+            echo "obj-y += kernelsu/" >> drivers/Makefile
+          fi
+
+      - name: Compilar
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # LIMPEZA TOTAL antes de começar
+          # Limpeza
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           
           # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # COMANDO NOVO: Remove as linhas que causam o erro de pasta inexistente
-          sed -i '/CONFIG_KSU/d' out/.config
-          echo "CONFIG_KSU=n" >> out/.config
+          # ATIVA o KernelSU no config (em vez de desativar)
+          scripts/config --file out/.config --enable CONFIG_KSU
+          # Como é non-GKI, o KSU costuma precisar dessas flags:
+          echo "CONFIG_KSU=y" >> out/.config
           
-          # Tenta compilar o motor de performance
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- || true
-          
-          # Tenta encontrar o arquivo mesmo se der aviso
-          find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
+          # Compilação principal
+          make -j$(nproc --all) O=out ARCH=arm64 \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            LLVM=1 \
+            LD=ld.lld
+
+      - name: Organizar Arquivos
+        run: |
+          # Procura o kernel compilado e move para a raiz
+          find out/arch/arm64/boot/ -name "Image*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Kernel-Final
-          path: Image.gz*
+          path: |
+            Image*
+            out/.config
