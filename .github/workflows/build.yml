@@ -1,4 +1,4 @@
-name: Mi9-Performance-POCO-F5-Edition
+name: Mi9-Turbo-PocoF5-Target
 on:
   workflow_dispatch:
 
@@ -14,20 +14,20 @@ jobs:
       - name: Instalar Ferramentas
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip libyaml-dev
           mkdir -p bin/clang
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Faxina nos Erros (Anti-Crash)
+      - name: Remoção Forçada de Conflitos
         run: |
-          # Remove a chamada do KernelSU que trava o build
+          # Remove a chamada do KernelSU que trava o build por falta de arquivos
           sed -i '/kernelsu/d' drivers/Makefile
           
-          # Remove o suporte a YAML que quebra o linker
+          # Desativa o suporte a YAML no utilitário DTC para evitar erros de símbolo
           sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
 
-      - name: Compilar com Clang r522817
+      - name: Compilação de Alta Performance
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
@@ -35,11 +35,11 @@ jobs:
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Desativa o que está dando erro nos logs
+          # Garante que as flags problemáticas estejam desativadas
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           scripts/config --file out/.config --disable CONFIG_KSU
           
-          # Build Otimizado
+          # Build com Clang r522817 para máxima otimização
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
@@ -50,12 +50,12 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip
 
-      - name: Upload Image.gz
+      - name: Artifact
         if: always()
         run: |
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
-      - name: Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Turbo-Kernel
