@@ -20,9 +20,9 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Baixar KernelSU Legacy (Correção Erro 2)
+      - name: Instalar KernelSU Legacy
         run: |
-          # Isso baixa os arquivos que o seu log disse que estão faltando
+          # Esse comando baixa os arquivos que o seu erro disse que estão faltando
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
 
       - name: Compilar Kernel
@@ -30,7 +30,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Compilação principal
+          # Compilação principal com os ajustes de performance
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Criar Arquivo Final
