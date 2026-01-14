@@ -14,20 +14,23 @@ jobs:
       - name: Instalar Ferramentas
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip libyaml-dev
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
           mkdir -p bin/clang
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Remoção Forçada de Conflitos
+      - name: Faxina nos Erros (Anti-Crash)
         run: |
-          # Remove a chamada do KernelSU que trava o build por falta de arquivos
+          # 1. Remove a chamada do KernelSU que trava o build
           sed -i '/kernelsu/d' drivers/Makefile
           
-          # Desativa o suporte a YAML no utilitário DTC para evitar erros de símbolo
+          # 2. Mata o erro de YAML (DTC) definitivamente
+          # Força o Makefile do DTC a não compilar o yamltree
           sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
+          # Define a flag de pré-processador para desativar o YAML no código C
+          echo "HOSTCFLAGS += -DNO_YAML" >> scripts/dtc/Makefile
 
-      - name: Compilação de Alta Performance
+      - name: Compilar com Clang r522817
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
@@ -35,11 +38,11 @@ jobs:
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Garante que as flags problemáticas estejam desativadas
+          # Desativa as configs que deram erro nos logs
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           scripts/config --file out/.config --disable CONFIG_KSU
           
-          # Build com Clang r522817 para máxima otimização
+          # Build Otimizado
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
