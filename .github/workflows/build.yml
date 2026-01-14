@@ -16,7 +16,6 @@ jobs:
           sudo apt update
           sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
           mkdir -p bin/clang
-          # Baixando o compilador oficial do Google para Android:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
@@ -24,6 +23,8 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           make O=out ARCH=arm64 cepheus_defconfig
+          # Adicionado 'modules_prepare' para evitar o erro de falta de arquivo
+          make O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- modules_prepare
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Criar Arquivo Final
