@@ -22,18 +22,15 @@ jobs:
       - name: Compilar Kernel
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
-          # Limpando qualquer resto de erro anterior
-          make O=out ARCH=arm64 clean
-          make O=out ARCH=arm64 mrproper
-          
-          # Configurando o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
+          # Compilação forçada
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu-
           
-          # Forçando a compilação mesmo se faltar arquivos não essenciais
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- || true
+          # COMANDO NOVO: Procura o arquivo e copia para a pasta principal
+          find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
         uses: actions/upload-artifact@v4
         with:
           name: Mi9-Kernel-Final
-          path: out/arch/arm64/boot/Image.gz-dtb
+          path: Image.gz*
