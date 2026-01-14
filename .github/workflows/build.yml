@@ -21,11 +21,11 @@ jobs:
 
       - name: Integrar KernelSU Next (Legacy)
         run: |
-          # 1. Baixa o KSU diretamente na pasta drivers/kernelsu
-          mkdir -p drivers/kernelsu
+          # 1. Limpa qualquer resquício e baixa o KSU corretamente
+          rm -rf drivers/kernelsu
           git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # 2. Garante que o Makefile dos drivers saiba que a pasta existe
+          # 2. Garante a inclusão no Makefile principal de drivers
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
@@ -34,21 +34,21 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # Limpeza total para evitar lixo de tentativas anteriores
+          # Limpeza profunda
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           
           # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # SOLUÇÃO PARA O ERRO DA IMAGEM 1: Desativa o YAML que quebra o build
-          # Isso resolve o "undefined symbol: yaml_scalar_event_initialize"
-          sed -i 's/CONFIG_DTC_FLAGS_YAML=y/CONFIG_DTC_FLAGS_YAML=n/g' out/.config
+          # MATA O ERRO DE YAML (Imagem 1)
+          # Removemos o suporte a YAML do compilador de árvore de dispositivos
+          scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           
-          # Ativa o KernelSU no config
+          # Ativa o KernelSU
           echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação - Usando CROSS_COMPILE e desativando avisos fatais
+          # Compilação - Forçamos o linker a ignorar o que não encontrar de YAML
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -57,11 +57,12 @@ jobs:
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
+            HOSTCFLAGS="-DCONFIG_DTC_FLAGS_YAML=0" \
             DTC_FLAGS="-@ -Wno-graph_child_address"
 
       - name: Organizar e Upload
+        if: always()
         run: |
-          # Procura a imagem gerada (pode ser Image.gz ou Image.gz-dtb)
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
