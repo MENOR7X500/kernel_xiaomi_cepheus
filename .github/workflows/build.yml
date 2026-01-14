@@ -1,4 +1,4 @@
-name: Mi9-Performance-1.2M-Final
+name: Mi9-Performance-POCO-F5-Edition
 on:
   workflow_dispatch:
 
@@ -19,25 +19,27 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Compilar Performance Pura
+      - name: Faxina nos Erros (Anti-Crash)
+        run: |
+          # Remove a chamada do KernelSU que trava o build
+          sed -i '/kernelsu/d' drivers/Makefile
+          
+          # Remove o suporte a YAML que quebra o linker
+          sed -i 's/dtc-objs += yamltree.o/#dtc-objs += yamltree.o/g' scripts/dtc/Makefile
+
+      - name: Compilar com Clang r522817
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # 1. Limpeza total para garantir que não haja restos de YAML (Erro da Imagem 9)
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
-          
-          # 2. Configura o Mi 9 (cepheus)
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # 3. MATA DEFINITIVO OS ERROS (YAML e KSU)
-          # Removemos o KSU do config para evitar erro de pasta (Imagem 7/8)
-          scripts/config --file out/.config --disable CONFIG_KSU
-          # Desativa o validador de YAML para evitar o erro de linker (Imagem 9)
+          # Desativa o que está dando erro nos logs
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
+          scripts/config --file out/.config --disable CONFIG_KSU
           
-          # 4. Compilação focada em velocidade
-          # Usando Clang para otimizar o código final
+          # Build Otimizado
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
@@ -48,14 +50,13 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip
 
-      - name: Organizar e Upload
+      - name: Upload Image.gz
         if: always()
         run: |
-          # Pega a Image.gz final para você testar
           find out/arch/arm64/boot/ -name "Image.gz*" -exec cp {} . \;
 
-      - name: Criar Arquivo Final
+      - name: Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-Performance
+          name: Mi9-Turbo-Kernel
           path: Image.gz*
