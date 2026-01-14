@@ -14,19 +14,20 @@ jobs:
       - name: Instalar Ferramentas
         run: |
           sudo apt update
-          # Adicionado libyaml-dev para corrigir o erro de 'undefined symbol: yaml'
           sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip libyaml-dev
           mkdir -p bin/clang
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Integrar KernelSU Next (Legacy)
+      - name: Preparar KernelSU Next
         run: |
-          # Baixa o código do KSU Next
+          # Garante que estamos na raiz e remove qualquer resquício
           rm -rf drivers/kernelsu
+          
+          # Clona diretamente para a pasta que o Makefile procura
           git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # Garante a inclusão no Makefile
+          # Adiciona ao Makefile de drivers caso não exista
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
@@ -35,37 +36,37 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # Limpeza total
+          # Limpeza antes de configurar
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           
           # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Ativa o KernelSU e garante suporte a YAML no script de build
+          # Habilita o KSU e DESATIVA o YAML que causa o erro de "undefined symbol"
           scripts/config --file out/.config --enable CONFIG_KSU
+          scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           echo "CONFIG_KSU=y" >> out/.config
           
-          # Compilação principal
-          # Removi o LLVM=1 temporariamente para testar a compatibilidade do linker padrão com libyaml
+          # Compilação - Usando LLD mas sem validar YAML
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip
+            STRIP=llvm-strip \
+            DTC_FLAGS="-@ -Wno-graph_child_address"
 
-      - name: Organizar Arquivos
+      - name: Organizar e Upload
         run: |
-          # Procura qualquer variação de Image (gz, dtb, etc)
           find out/arch/arm64/boot/ -name "Image*" -exec cp {} . \;
 
-      - name: Criar Arquivo Final
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: Mi9-Kernel-Final
-          path: |
-            Image*
+          name: Kernel-Mi9-KSU-Next
+          path: Image*
