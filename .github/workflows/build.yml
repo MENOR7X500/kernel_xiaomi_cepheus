@@ -14,18 +14,19 @@ jobs:
       - name: Instalar Ferramentas
         run: |
           sudo apt update
-          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip
+          # Adicionado libyaml-dev para corrigir o erro de 'undefined symbol: yaml'
+          sudo apt install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libelf-dev flex bison zip libyaml-dev
           mkdir -p bin/clang
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
       - name: Integrar KernelSU Next (Legacy)
         run: |
-          # Remove a pasta se ela já existir por algum motivo e clona a versão Next
+          # Baixa o código do KSU Next
           rm -rf drivers/kernelsu
           git clone https://github.com/rifsxd/KernelSU-Next drivers/kernelsu
           
-          # Garante que o KernelSU está no Makefile dos drivers
+          # Garante a inclusão no Makefile
           if ! grep -q "obj-y += kernelsu/" drivers/Makefile; then
             echo "obj-y += kernelsu/" >> drivers/Makefile
           fi
@@ -34,29 +35,32 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/bin/clang/bin:$PATH"
           
-          # Limpeza
+          # Limpeza total
           make O=out ARCH=arm64 clean
           make O=out ARCH=arm64 mrproper
           
           # Configura o Mi 9
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # ATIVA o KernelSU no config (em vez de desativar)
+          # Ativa o KernelSU e garante suporte a YAML no script de build
           scripts/config --file out/.config --enable CONFIG_KSU
-          # Como é non-GKI, o KSU costuma precisar dessas flags:
           echo "CONFIG_KSU=y" >> out/.config
           
           # Compilação principal
+          # Removi o LLVM=1 temporariamente para testar a compatibilidade do linker padrão com libyaml
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            LLVM=1 \
-            LD=ld.lld
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip
 
       - name: Organizar Arquivos
         run: |
-          # Procura o kernel compilado e move para a raiz
+          # Procura qualquer variação de Image (gz, dtb, etc)
           find out/arch/arm64/boot/ -name "Image*" -exec cp {} . \;
 
       - name: Criar Arquivo Final
@@ -65,4 +69,3 @@ jobs:
           name: Mi9-Kernel-Final
           path: |
             Image*
-            out/.config
