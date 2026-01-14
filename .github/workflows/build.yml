@@ -19,18 +19,18 @@ jobs:
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -C bin/clang -xzf clang-r522817.tar.gz
 
-      - name: Faxina Inteligente (Anti-YAML e Anti-KSU)
+      - name: Faxina Blindada (Correção Erro 293 e YAML)
         run: |
           # 1. Remove a chamada do KernelSU que trava o build por falta de pasta
           sed -i '/kernelsu/d' drivers/Makefile
           
-          # 2. Resolve o Erro 293: Mantém o arquivo mas limpa o conteúdo
+          # 2. RESOLVE ERRO 293: Mantém o arquivo mas limpa o conteúdo
           echo "/* Esvaziado para evitar erro de YAML */" > scripts/dtc/yamltree.c
           
-          # 3. Resolve as linhas 341-367: Remove a instrução de compilação do objeto
+          # 3. RESOLVE LINHAS 341-367: Remove a instrução de compilação do objeto
           sed -i 's/dtc-objs += yamltree.o//g' scripts/dtc/Makefile
           
-          # 4. Desativa dependências externas no compilador de árvore de dispositivos
+          # 4. Desativa dependências externas no DTC
           echo "HOST_EXTRACFLAGS += -DNO_YAML" >> scripts/dtc/Makefile
 
       - name: Compilação de Alta Performance
@@ -41,11 +41,11 @@ jobs:
           make O=out ARCH=arm64 mrproper
           make O=out ARCH=arm64 cepheus_defconfig
           
-          # Desativa as configs problemáticas identificadas nos logs
+          # Desativa as configs problemáticas identificadas nos seus prints
           scripts/config --file out/.config --disable CONFIG_DTC_FLAGS_YAML
           scripts/config --file out/.config --disable CONFIG_KSU
           
-          # Build otimizado para o Mi 9 (Snapdragon 855)
+          # Build otimizado com Clang moderno
           make -j$(nproc --all) O=out ARCH=arm64 \
             CC=clang \
             HOSTCC=clang \
