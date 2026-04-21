@@ -1,33 +1,23 @@
-name: Build Kernel NTSync Cepheus
+name: Build Kernel Cepheus
 on:
-  workflow_dispatch: # Permite que você dê o "Play" manualmente
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Build Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison lld llvm clang libssl-dev libelf-dev
 
-      - name: Apply NTSync Backport
-        run: |
-          # Baixando os arquivos do driver NTSync para o Kernel 4.14
-          curl -LSs "https://raw.githubusercontent.com/Project-W-A-P/ntsync-backport/main/setup_ntsync.sh" | bash
-          
-          # Ativando a flag no arquivo de configuração do Mi 9
-          echo "CONFIG_NTSYNC=y" >> arch/arm64/configs/cepheus_defconfig
-          echo "NTSync habilitado no defconfig!"
-
       - name: Build Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          # Usando o compilador Clang que já vem no Ubuntu do GitHub
           make O=out cepheus_defconfig
           make -j$(nproc --all) O=out \
                       CC=clang \
@@ -37,5 +27,6 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Kernel-Cepheus-NTSync
+          name: Kernel-Cepheus-Teste
           path: out/arch/arm64/boot/Image.gz-dtb
+          
