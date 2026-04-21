@@ -35,7 +35,7 @@ jobs:
                       CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Kernel-Cepheus-NTSync
           path: out/arch/arm64/boot/Image.gz-dtb
